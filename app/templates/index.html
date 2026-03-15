@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="hero">
+    <h1>Train Smart. Eliminate TLE 🚀</h1>
+    <p>Create focused practice sheets in seconds.</p>
+</div>
+
+<div class="row g-4 pb-5">
+
+    <div class="col-md-6 col-lg-3">
+        <div class="card card-custom p-4 text-center">
+            <h5>🚀 Generate Sheet</h5>
+            <a href="/problems" class="btn btn-primary-custom mt-3">Start</a>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3">
+        <div class="card card-custom p-4 text-center">
+            <h5>📚 Topic Wise</h5>
+            <a href="/topic" class="btn btn-primary-custom mt-3">Explore</a>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3">
+        <div class="card card-custom p-4 text-center">
+            <h5>📊 Rating Wise</h5>
+            <a href="/rating" class="btn btn-primary-custom mt-3">Filter</a>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-3">
+        <div class="card card-custom p-4 text-center">
+            <h5>🔥 Daily Problem</h5>
+            <a href="/daily" class="btn btn-primary-custom mt-3">Solve</a>
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}

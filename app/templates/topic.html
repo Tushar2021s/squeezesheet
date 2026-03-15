@@ -1,0 +1,31 @@
+<h2>Topic Wise Problems</h2>
+
+<form method="get" action="/topic">
+    
+    <label>Select Tag:</label>
+    <select name="tag">
+        <option value="">-- Choose Tag --</option>
+        {% for t in all_tags %}
+            <option value="{{ t }}" {% if t == selected_tag %}selected{% endif %}>
+                {{ t }}
+            </option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">Search</button>
+</form>
+
+<hr>
+
+{% if problems %}
+<ul>
+{% for problem in problems %}
+    <li>
+        <a href="https://codeforces.com/problemset/problem/{{ problem.contestId }}/{{ problem.index }}" target="_blank">
+            {{ problem.name }}
+        </a>
+        — Rating: {{ problem.rating if problem.rating else "N/A" }}
+    </li>
+{% endfor %}
+</ul>
+{% endif %}

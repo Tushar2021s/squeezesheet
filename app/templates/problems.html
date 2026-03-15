@@ -7,6 +7,7 @@
 
 <h1>Squeeze Sheet - Codeforces Problems</h1>
 
+<!-- Original Filter Form -->
 <form method="get">
 
     Min Rating:
@@ -27,6 +28,39 @@
 
 <hr>
 
+<!-- NEW Rating Generator Section -->
+<h2>Generate Problems by Rating</h2>
+
+<form method="get" action="/problems">
+    <input type="number" name="min_rating" placeholder="Min Rating" value="{{ min_rating }}">
+    <input type="number" name="max_rating" placeholder="Max Rating" value="{{ max_rating }}">
+    <input type="number" name="count" placeholder="Number of Problems" value="{{ count }}">
+    <button type="submit">Generate</button>
+</form>
+
+<hr>
+
+{% if error %}
+<p style="color:red;">{{ error }}</p>
+{% endif %}
+
+{% if problems %}
+    <h3>Problems:</h3>
+    <ul>
+    {% for problem in problems %}
+        <li>
+            <a href="https://codeforces.com/problemset/problem/{{ problem.contestId }}/{{ problem.index }}" target="_blank">
+                {{ problem.name }}
+            </a>
+            — Rating: {{ problem.rating }}
+        </li>
+    {% endfor %}
+    </ul>
+{% endif %}
+
+<hr>
+
+<!-- Detailed Table View -->
 <table border="1">
     <tr>
         <th>Name</th>
@@ -55,60 +89,3 @@
 
 </body>
 </html>
-
-
-
-
-
-<!-- <!DOCTYPE html>
-<html>
-<head>
-    <title>Squeeze Sheet - Problems</title>
-</head>
-<body>
-
-<h1>Squeeze Sheet - Codeforces Problems</h1>
-
-<form method="get">
-
-    Min Rating:
-    <input type="number" name="min_rating" value="{{ min_rating }}">
-
-    Max Rating:
-    <input type="number" name="max_rating" value="{{ max_rating }}">
-
-    Tag:
-    <input type="text" name="tag" value="{{ tag }}">
-
-    Number of Problems:
-    <input type="number" name="count" value="{{ count or 10 }}">
-
-    <button type="submit">Generate Sheet</button>
-
-</form>
-<hr>
-
-<table border="1">
-    <tr>
-        <th>Name</th>
-        <th>Rating</th>
-        <th>Tags</th>
-        <th>Link</th>
-    </tr>
-
-    {% for problem in problems %}
-    <tr>
-        <td>{{ problem.name }}</td>
-        <td>{{ problem.rating }}</td>
-        <td>{{ problem.tags }}</td>
-        <td>
-            <a href="https://codeforces.com/problemset/problem/{{ problem.contestId }}/{{ problem.index }}" target="_blank">
-                Open
-            </a>
-        </td>
-    </tr>
-    {% endfor %}
-</table>
-
-</body>
-</html> -->
