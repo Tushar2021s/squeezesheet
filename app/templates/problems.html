@@ -67,21 +67,49 @@
         <th>Rating</th>
         <th>Tags</th>
         <th>Link</th>
+        <th>Status</th>
+        <th>Action</th>
     </tr>
 
     {% for problem in problems %}
     <tr>
         <td>{{ problem.name }}</td>
         <td>{{ problem.rating }}</td>
+
         <td>
             {% for t in problem.tags %}
                 {{ t }}{% if not loop.last %}, {% endif %}
             {% endfor %}
         </td>
+
         <td>
             <a href="https://codeforces.com/problemset/problem/{{ problem.contestId }}/{{ problem.index }}" target="_blank">
                 Open
             </a>
+        </td>
+
+        <!--  Status Column -->
+        <td>
+            {% if problem.name in solved_problems %}
+                 Solved
+            {% else %}
+                 Unsolved
+            {% endif %}
+        </td>
+
+        <!--  Action Column -->
+        <td>
+            {% if problem.name not in solved_problems %}
+                <form method="post" action="/mark">
+                    <input type="hidden" name="problem_id" value="{{ problem.contestId }}-{{ problem.index }}">
+                    <input type="hidden" name="problem_name" value="{{ problem.name }}">
+                    <input type="hidden" name="rating" value="{{ problem.rating }}">
+                    <input type="hidden" name="tag" value="{{ problem.tags[0] if problem.tags else '' }}">
+                    <button type="submit">Mark Solved</button>
+                </form>
+            {% else %}
+                ✔ Done
+            {% endif %}
         </td>
     </tr>
     {% endfor %}

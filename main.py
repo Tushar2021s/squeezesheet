@@ -9,7 +9,18 @@ from authlib.integrations.starlette_client import OAuth
 import random
 import requests
 import models
+from datetime import datetime
 from database import engine, SessionLocal
+from app.services.streak_service import update_streak
+from app.routes.daily import get_daily_problem
+from app.services.daily_service import get_daily_problem, get_problem_details
+from app.routes.problems import (
+    fetch_all_problems,
+    filter_problems,
+    get_solved_set,
+    exclude_solved,
+    generate_sheet
+)
 
 # -------------------------------
 # Create database tables
@@ -237,35 +248,6 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
 
     request.session["user"] = user.username
     return RedirectResponse("/", status_code=303)
-# @app.get("/auth/google")
-# async def auth_google(request: Request, db: Session = Depends(get_db)):
-#     token = await oauth.google.authorize_access_token(request)
-#     user_info = token["userinfo"]
-
-#     google_id = user_info["sub"]
-#     email = user_info["email"]
-#     name = user_info["name"]
-
-#     user = db.query(models.User).filter(
-#         models.User.google_id == google_id
-#     ).first()
-
-#     if not user:
-#         user = models.User(
-#             username=name,
-#             email=email,
-#             google_id=google_id,
-#             provider="google"
-#         )
-#         db.add(user)
-#         db.commit()
-
-#     request.session["user"] = user.username
-#     return RedirectResponse("/", status_code=303)
-
-# -------------------------------
-# Codeforces Login
-# -------------------------------
 
 @app.post("/register/codeforces")
 def register_codeforces(
@@ -346,36 +328,35 @@ def get_problems(
     request: Request,
     min_rating: int = 800,
     max_rating: int = 1500,
-    count: int = 20
+    tag: str = "",
+    count: int = 20,
+    db: Session = Depends(get_db)
 ):
 
-    # 🔐 Require login
+    #  Require login
     if not request.session.get("user"):
         return RedirectResponse("/login", status_code=303)
 
-    url = "https://codeforces.com/api/problemset.problems"
-    response = requests.get(url)
-    data = response.json()
+    user = request.session.get("user")
 
-    if data["status"] != "OK":
+    # 1️ Fetch problems
+    problems = fetch_all_problems()
+
+    if not problems:
         return templates.TemplateResponse(
             "problems.html",
-            {"request": request, "error": "Unable to fetch problems"}
+            {"request": request, "error": "API error"}
         )
 
-    problems = data["result"]["problems"]
+    # 2️ Filter problems
+    filtered = filter_problems(problems, min_rating, max_rating, tag)
 
-    # Filter by rating
-    filtered = [
-        p for p in problems
-        if p.get("rating") and min_rating <= p["rating"] <= max_rating
-    ]
+    # 3️ Remove solved problems
+    solved_set = get_solved_set(db, user)
+    filtered = exclude_solved(filtered, solved_set)
 
-    #  Sort by rating (low → high)
-    filtered.sort(key=lambda x: x["rating"])
-
-    #  Take first N problems
-    sheet = filtered[:count]
+    # 4️ Smart sheet generation
+    sheet = generate_sheet(filtered, count)
 
     return templates.TemplateResponse(
         "problems.html",
@@ -384,9 +365,14 @@ def get_problems(
             "problems": sheet,
             "min_rating": min_rating,
             "max_rating": max_rating,
-            "count": count
+            "count": count,
+            "tag": tag,
+            "solved_problems": solved_set
         }
     )
+
+
+
 
 @app.get("/rating", response_class=HTMLResponse)
 def rating_wise(
@@ -453,422 +439,67 @@ def topic_wise(
             "selected_tag": tag
         }
     )
-# @app.get("/problems", response_class=HTMLResponse)
-# def get_problems(
-#     request: Request,
-#     min_rating: int = 800,
-#     max_rating: int = 1500,
-#     tag: str = "",
-#     count: int = 10
-# ):
-#     url = "https://codeforces.com/api/problemset.problems"
-#     response = requests.get(url)
-#     data = response.json()
 
-#     filtered = []
-
-#     for problem in data["result"]["problems"]:
-#         rating = problem.get("rating")
-#         tags = problem.get("tags", [])
-
-#         if rating is None:
-#             continue
-
-#         if min_rating <= rating <= max_rating:
-#             if tag == "" or tag in tags:
-#                 filtered.append(problem)
-
-#     sheet = random.sample(filtered, min(count, len(filtered)))
-
-#     return templates.TemplateResponse(
-#         "problems.html",
-#         {
-#             "request": request,
-#             "problems": sheet,
-#             "min_rating": min_rating,
-#             "max_rating": max_rating,
-#             "tag": tag,
-#             "count": count
-#         }
-#     )
-
-
-
-# from fastapi import FastAPI, Request, Form, Depends
-# from fastapi.responses import HTMLResponse
-# from fastapi.templating import Jinja2Templates
-# from fastapi.staticfiles import StaticFiles
-# from sqlalchemy.orm import Session
-# from passlib.context import CryptContext
-# from starlette.middleware.sessions import SessionMiddleware
-# from app.routes.home import router as home_router
-# import random
-# import requests
-
-# import models
-# from database import engine, SessionLocal
-# from authlib.integrations.starlette_client import OAuth
-# import os
-# # Create tables
-# models.Base.metadata.create_all(bind=engine)
-
-# app = FastAPI()
-# app.add_middleware(SessionMiddleware, secret_key="super-secret-key")
-# # Mount static files
-# app.mount("/static", StaticFiles(directory="static"), name="static")
-# oauth = OAuth()
-
-# oauth.register(
-#     name="google",
-#     client_id="YOUR_GOOGLE_CLIENT_ID",
-#     client_secret="YOUR_GOOGLE_CLIENT_SECRET",
-#     server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-#     client_kwargs={
-#         "scope": "openid email profile"
-#     }
-# )
-# from fastapi.responses import RedirectResponse
-
-# @app.get("/login/google")
-# async def login_google(request: Request):
-#     redirect_uri = request.url_for("auth_google")
-#     return await oauth.google.authorize_redirect(request, redirect_uri)
-
-# @app.get("/auth/google")
-# async def auth_google(request: Request, db: Session = Depends(get_db)):
-#     token = await oauth.google.authorize_access_token(request)
-#     user_info = token["userinfo"]
-
-#     google_id = user_info["sub"]
-#     email = user_info["email"]
-#     name = user_info["name"]
-
-#     user = db.query(models.User).filter(models.User.google_id == google_id).first()
-
-#     if not user:
-#         user = models.User(
-#             username=name,
-#             email=email,
-#             google_id=google_id,
-#             provider="google"
-#         )
-#         db.add(user)
-#         db.commit()
-
-#     request.session["user"] = user.username
-#     return RedirectResponse("/", status_code=303)
-# @app.post("/login/codeforces")
-# def login_codeforces(
-#     request: Request,
-#     cf_handle: str = Form(...),
-#     db: Session = Depends(get_db)
-# ):
-#     url = f"https://codeforces.com/api/user.info?handles={cf_handle}"
-#     response = requests.get(url)
-
-#     data = response.json()
-
-#     if data["status"] != "OK":
-#         return templates.TemplateResponse(
-#             "login.html",
-#             {"request": request, "error": "Invalid Codeforces Handle"}
-#         )
-
-#     user = db.query(models.User).filter(models.User.cf_handle == cf_handle).first()
-
-#     if not user:
-#         user = models.User(
-#             username=cf_handle,
-#             cf_handle=cf_handle,
-#             provider="codeforces"
-#         )
-#         db.add(user)
-#         db.commit()
-
-#     request.session["user"] = user.username
-#     return RedirectResponse("/", status_code=303)
-# # Create tables
-# models.Base.metadata.create_all(bind=engine)
-
-# # app = FastAPI()
-# # app.add_middleware(SessionMiddleware, secret_key="super-secret-key")
-# # # Mount static files
-# # app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# # Templates
-# templates = Jinja2Templates(directory="app/templates")
-# # Password hashing
-# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# # Database dependency
-# def get_db():
-#     db = SessionLocal()
-#     try:
-#         yield db
-#     finally:
-#         db.close()
-
-# @app.get("/")
-# def home(request: Request):
-#     user = request.session.get("user")
-#     return templates.TemplateResponse(
-#         "index.html",
-#         {
-#             "request": request,
-#             "user": user
-#         }
-#     )
-# # @app.get("/")
-# # def home(request: Request):
-# #     return templates.TemplateResponse("index.html", {"request": request})
-
-# # @app.get("/register", response_class=HTMLResponse)
-# # def register_page(request: Request):
-# #     return templates.TemplateResponse("register.html", {"request": request})
-
-
-# @app.post("/register", response_class=HTMLResponse)
-# def register_user(
-#     request: Request,
-#     username: str = Form(...),
-#     email: str = Form(...),
-#     password: str = Form(...),
-#     db: Session = Depends(get_db)
-# ):
-#     # Check if user already exists
-#     existing_user = db.query(models.User).filter(
-#         (models.User.username == username) | 
-#         (models.User.email == email)
-#     ).first()
-
-#     if existing_user:
-#         return templates.TemplateResponse(
-#             "register.html",
-#             {
-#                 "request": request,
-#                 "error": "Username or Email already exists"
-#             }
-#         )
-
-#     # Hash password
-#     hashed_password = pwd_context.hash(password)
-
-#     # Create user
-#     new_user = models.User(
-#         username=username,
-#         email=email,
-#         password=hashed_password
-#     )
-
-#     db.add(new_user)
-#     db.commit()
-
-#     return templates.TemplateResponse(
-#         "index.html",
-#         {
-#             "request": request,
-#             "message": "Registration Successful! Please Login."
-#         }
-#     )
-
-# @app.get("/login", response_class=HTMLResponse)
-# def login_page(request: Request):
-#     return templates.TemplateResponse("login.html", {"request": request})
-
-
-# @app.post("/login", response_class=HTMLResponse)
-# def login_user(
-#     request: Request,
-#     username: str = Form(...),
-#     password: str = Form(...),
-#     db: Session = Depends(get_db)
-# ):
-#     user = db.query(models.User).filter(
-#         models.User.username == username
-#     ).first()
-
-#     if not user:
-#         return templates.TemplateResponse(
-#             "login.html",
-#             {"request": request, "error": "Invalid Username"}
-#         )
-
-#     if not pwd_context.verify(password, user.password):
-#         return templates.TemplateResponse(
-#             "login.html",
-#             {"request": request, "error": "Invalid Password"}
-#         )
-
-#     # Store user in session
-#     request.session["user"] = user.username
-
-#     return templates.TemplateResponse(
-#         "index.html",
-#         {"request": request, "message": "Login Successful!"}
-#     )
-
-# @app.get("/logout")
-# def logout(request: Request):
-#     request.session.clear()
-#     return templates.TemplateResponse(
-#         "index.html",
-#         {"request": request, "message": "Logged out successfully"}
-#     )
-
-# @app.get("/problems", response_class=HTMLResponse)
-# def get_problems(
-#     request: Request,
-#     min_rating: int = 800,
-#     max_rating: int = 1500,
-#     tag: str = "",
-#     count: int = 10
-# ):
-#     url = "https://codeforces.com/api/problemset.problems"
-#     response = requests.get(url)
-#     data = response.json()
-
-#     filtered = []
-
-#     for problem in data["result"]["problems"]:
-#         rating = problem.get("rating")
-#         tags = problem.get("tags", [])
-
-#         if rating is None:
-#             continue
-
-#         if min_rating <= rating <= max_rating:
-#             if tag == "" or tag in tags:
-#                 filtered.append(problem)
-
-#     sheet = random.sample(filtered, min(count, len(filtered)))
-
-#     return templates.TemplateResponse(
-#         "problems.html",
-#         {
-#             "request": request,
-#             "problems": sheet,
-#             "min_rating": min_rating,
-#             "max_rating": max_rating,
-#             "tag": tag,
-#             "count": count
-#         }
-#     )
-
-
-
-
-
-
-# # from fastapi import FastAPI, Request, Depends
-# # from fastapi.responses import HTMLResponse
-# # from fastapi.templating import Jinja2Templates
-# # from fastapi.staticfiles import StaticFiles
-# # from sqlalchemy.orm import Session
-# # from database import engine
-# # from models import User
-# # from database import SessionLocal
-# # from passlib.context import CryptContext
-# # from fastapi import Form, Depends
-
-# # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# # User.metadata.create_all(bind=engine)
-# # import random
-# # import requests
-
-# # import models
-# # from database import engine, SessionLocal
-
-# # models.Base.metadata.create_all(bind=engine)
-
-# # app = FastAPI()
-
-# # app.mount("/static", StaticFiles(directory="static"), name="static")
-# # templates = Jinja2Templates(directory="templates")
-
-# # # Dependency
-# # def get_db():
-# #     db = SessionLocal()
-# #     try:
-# #         yield db
-# #     finally:
-# #         db.close()
-
-
-# # @app.get("/")
-# # def home(request: Request):
-# #     return templates.TemplateResponse("index.html", {"request": request})
-
-# # @app.get("/problems", response_class=HTMLResponse)
-# # def get_problems(
-# #     request: Request,
-# #     min_rating: int = 800,
-# #     max_rating: int = 1500,
-# #     tag: str = "",
-# #     count: int = 10
-# # ):
-# #     url = "https://codeforces.com/api/problemset.problems"
-# #     response = requests.get(url)
-# #     data = response.json()
-
-# #     filtered = []
-
-# #     for problem in data["result"]["problems"]:
-# #         rating = problem.get("rating")
-# #         tags = problem.get("tags", [])
-
-# #         if rating is None:
-# #             continue
-
-# #         if rating >= min_rating and rating <= max_rating:
-# #             if tag == "" or tag in tags:
-# #                 filtered.append(problem)
-
-# #     # Randomly pick problems
-# #     sheet = random.sample(filtered, min(count, len(filtered)))
-
-# #     return templates.TemplateResponse(
-# #     "problems.html",
-# #     {
-# #         "request": request,
-# #         "problems": sheet,
-# #         "min_rating": min_rating,
-# #         "max_rating": max_rating,
-# #         "tag": tag,
-# #         "count": count
-# #     }
-# # )
-
-
-# # # @app.get("/problems", response_class=HTMLResponse)
-# # # def get_problems(
-# # #     request: Request,
-# # #     min_rating: int = 800,
-# # #     max_rating: int = 1500,
-# # #     tag: str = None
-# # # ):
-# # #     url = "https://codeforces.com/api/problemset.problems"
-# # #     response = requests.get(url)
-# # #     data = response.json()
-
-# # #     problems = []
-
-# # #     for problem in data["result"]["problems"]:
-# # #         if "rating" in problem:
-# # #             if min_rating <= problem["rating"] <= max_rating:
-# # #                 if tag:
-# # #                     if tag not in problem["tags"]:
-# # #                         continue
-
-# # #                 problems.append(problem)
-
-# # #     return templates.TemplateResponse(
-# # #         "problems.html",
-# # #         {
-# # #             "request": request,
-# # #             "problems": problems[:50],
-# # #             "min_rating": min_rating,
-# # #             "max_rating": max_rating,
-# # #             "tag": tag
-# # #         }
-# # #     )
+@app.post("/mark")
+def mark_problem(
+    request: Request,
+    problem_id: str = Form(...),
+    problem_name: str = Form(...),
+    rating: int = Form(...),
+    tag: str = Form(""),
+    db: Session = Depends(get_db)
+):
+    user = request.session.get("user")
+
+    # Save problem
+    entry = models.ProblemStatus(
+        username=user,
+        problem_id=problem_id,
+        problem_name=problem_name,
+        rating=rating,
+        tag=tag,
+        status="solved",
+        timestamp=str(datetime.now())
+    )
+
+    db.add(entry)
+
+    #  CHECK IF DAILY PROBLEM
+    daily_id = get_daily_problem(db)
+
+    if problem_id == daily_id:
+        update_streak(db, user)
+
+    db.commit()
+
+    return RedirectResponse("/problems", status_code=303)
+
+
+
+@app.get("/daily", response_class=HTMLResponse)
+def daily_problem(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    if not request.session.get("user"):
+        return RedirectResponse("/login", status_code=303)
+
+    # 1️ Get today's problem ID
+    problem_id = get_daily_problem(db)
+
+    if not problem_id:
+        return templates.TemplateResponse(
+            "daily.html",
+            {"request": request, "error": "No problem found"}
+        )
+
+    # 2️ Get full details
+    problem = get_problem_details(problem_id)
+
+    return templates.TemplateResponse(
+        "daily.html",
+        {
+            "request": request,
+            "problem": problem
+        }
+    )

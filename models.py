@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String
 from database import Base
 
+
 class User(Base):
     __tablename__ = "users"
 
@@ -9,46 +10,53 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=True)
     email = Column(String, unique=True, index=True, nullable=True)
 
-    password = Column(String, nullable=True)  # null for google users
+    password = Column(String, nullable=True)
 
     google_id = Column(String, unique=True, nullable=True)
     cf_handle = Column(String, unique=True, nullable=True)
 
-    provider = Column(String, default="local")  # local / google / codeforces
+    provider = Column(String, default="local")
 
 
-# from sqlalchemy import Column, Integer, String
-# from database import Base
+class ProblemStatus(Base):
+    __tablename__ = "problem_status"
 
-# class User(Base):
-#     __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
 
-#     id = Column(Integer, primary_key=True, index=True)
-#     username = Column(String, unique=True, index=True)
-#     email = Column(String, unique=True, index=True)
-#     password = Column(String)
+    username = Column(String, index=True)
 
+    problem_id = Column(String, index=True)
+    problem_name = Column(String)
 
-# # from sqlalchemy import Column, Integer, String
-# from database import Base
+    rating = Column(Integer)
+    tag = Column(String)
 
-# class User(Base):
-#     __tablename__ = "users"
+    status = Column(String)  # solved / attempted
 
-#     id = Column(Integer, primary_key=True, index=True)
-#     username = Column(String, unique=True, index=True)
-#     password = Column(String)
+    timestamp = Column(String)
 
 
+class DailyChallenge(Base):
+    __tablename__ = "daily_challenge"
 
-# # from sqlalchemy import Column, Integer, String
-# # from database import Base
+    id = Column(Integer, primary_key=True)
 
-# # class SolvedProblem(Base):
-# #     __tablename__ = "solved_problems"
+    date = Column(String, unique=True)
 
-# #     id = Column(Integer, primary_key=True, index=True)
-# #     contestId = Column(Integer)
-# #     index = Column(String)
-# #     name = Column(String)
-# #     rating = Column(Integer)
+    problem_ids = Column(String)
+
+
+class UserStats(Base):
+    __tablename__ = "user_stats"
+
+    id = Column(Integer, primary_key=True)
+
+    username = Column(String, unique=True)
+
+    problems_solved = Column(Integer, default=0)
+    problems_attempted = Column(Integer, default=0)
+
+    current_streak = Column(Integer, default=0)
+    max_streak = Column(Integer, default=0)
+
+    last_solved_date = Column(String, nullable=True)

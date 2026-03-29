@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="text-center mb-5">
+    <h1> Daily Challenge</h1>
+    <p>Solve today's problem and maintain your streak!</p>
+</div>
+
+{% if problem %}
+<div class="card p-4 text-center">
+
+    <h3>{{ problem.name }}</h3>
+
+    <p><strong>Rating:</strong> {{ problem.rating }}</p>
+
+    <p>
+        <strong>Tags:</strong>
+        {% for t in problem.tags %}
+            {{ t }}{% if not loop.last %}, {% endif %}
+        {% endfor %}
+    </p>
+
+    <a href="https://codeforces.com/problemset/problem/{{ problem.contestId }}/{{ problem.index }}"
+       target="_blank"
+       class="btn btn-primary-custom mt-3">
+        Solve Now
+    </a>
+
+</div>
+{% endif %}
+
+{% if error %}
+<p style="color:red;">{{ error }}</p>
+{% endif %}
+
+{% endblock %}
